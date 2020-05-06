@@ -1,0 +1,66 @@
+#!/bin/ksh
+echo `date` $0 begin
+################################################################################
+#   Script:    
+#
+
+
+# Set environment.
+VERBOSE=${VERBOSE:-"YES"}
+if [ $VERBOSE = "YES" ]; then
+    echo $(date) EXECUTING $0 $* >&2
+    set -x
+fi
+
+# Utilities
+NCP=${NCP:-"/bin/cp -p"}
+NLN=${NLN:-"/bin/ln -sf"}
+NMV=${NMV:-"/bin/mv -uv"}
+
+export mem=$1
+export file_dir=$COMOUT/pgrbsubx1p0 #pgrbsubx1p0 location
+
+#Input directories (directories that need to be extracted from)
+export pgrb2ap5_dir=/gpfs/dell6/emc/modeling/noscrub/emc.enspara/Xianwu.Xue/GEFS_v12_test_Data/test_1_Hou_20200415/gefs.20200415/00/atmos/pgrb2ap5 
+export pgrb2bp5_dir=/gpfs/dell6/emc/modeling/noscrub/emc.enspara/Xianwu.Xue/GEFS_v12_test_Data/test_1_Hou_20200415/gefs.20200415/00/atmos/pgrb2bp5
+
+
+#extract and interpolate the subx variables
+CDATE=$PDY$cyc
+export E_YEAR=$(echo  $CDATE | cut -c1-4)
+export E_MONTH=$(echo $CDATE | cut -c5-6)
+export E_DAY=$(echo   $CDATE | cut -c7-8)
+
+#extraction and interpolation
+$USHgefs/gefs_subxextract.sh
+
+fcst_file=$COMOUT/pgrbsubx1p0/ #input data 
+
+ls ${fcst_file}/${mem}* 2> /dev/null
+rc=$?
+echo "rc=$rc"
+if [ $rc == "0" ]; then
+  echo "pgrbsubx1p0 forecast is available"
+  export date=${E_YEAR}${E_MONTH}${E_DAY}
+  export out_dir_pre=$COMOUT/subx_daily
+  export ens_mem=${mem}
+  echo ${out_dir_pre}*m${mem:3:2}*.grb2
+
+  export out_dir=$out_dir_pre/output_p1/
+  $EXECgefs/gefsv12_daily_ave_1mem_p1.exe $date
+  export out_dir=$out_dir_pre/output_p2/
+  $EXECgefs/gefsv12_daily_ave_1mem_p2.exe $date
+  export out_dir=$out_dir_pre/output_p3/
+  $EXECgefs/gefsv12_daily_ave_1mem_p3.exe $date
+else
+   msg="FAILED to extract SubX variables from pgrb2ap5 and/or pgrb2bp5 for ${mem}."
+   echo "$(date)    $msg"
+   postmsg "$jlogfile" "$msg"
+   export err=1
+   err_chk
+   exit $err
+fi
+
+
+
+
